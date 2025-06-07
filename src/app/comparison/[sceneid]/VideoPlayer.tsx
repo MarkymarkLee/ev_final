@@ -10,7 +10,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ source }) => {
     const playerRef = useRef<ReactPlayer>(null);
     const progressRef = useRef<HTMLInputElement>(null);
     const [playing, setPlaying] = useState(false);
-    const [volume, setVolume] = useState(0.5);
     const [played, setPlayed] = useState(0);
     const [duration, setDuration] = useState(0);
     const [currentTime, setCurrentTime] = useState(0);
@@ -33,31 +32,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ source }) => {
         setPlaying(prev => !prev);
     }, []);
 
-    const seekForward = () => {
-        if (playerRef.current) {
-            const newTime = Math.min(playerRef.current.getCurrentTime() + 10, duration);
-            playerRef.current.seekTo(newTime);
-        }
-    };
+    
 
-    const seekBackward = () => {
-        if (playerRef.current) {
-            const newTime = Math.max(playerRef.current.getCurrentTime() - 10, 0);
-            playerRef.current.seekTo(newTime);
-        }
-    };    const handleProgress = (state: { played: number; playedSeconds: number }) => {
+     const handleProgress = (state: { played: number; playedSeconds: number }) => {
         if (!isDragging) {
             setPlayed(state.played);
             setCurrentTime(state.playedSeconds);
         }
-    };const toggleMute = () => {
-        setVolume(prev => prev === 0 ? 0.5 : 0);
     };
 
-    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newVolume = parseFloat(e.target.value);
-        setVolume(newVolume);
-    };    const handleProgressMouseDown = () => {
+    const handleProgressMouseDown = () => {
         setIsDragging(true);
     };
 
@@ -193,7 +177,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ source }) => {
                         ref={playerRef}
                         url={blobUrl}
                         playing={playing}
-                        volume={volume}
                         onProgress={handleProgress}
                         onDuration={handleDuration}
                         width="100%"

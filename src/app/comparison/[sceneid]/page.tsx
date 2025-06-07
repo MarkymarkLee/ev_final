@@ -3,10 +3,8 @@ import { Suspense, useEffect, useState } from 'react';
 import { redirect, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import ProgressBar from './ProgressBar';
 import { supabase } from '../../../../lib/supabaseClient';
-import ReactPlayer from 'react-player';
-import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/solid';
+import { CheckCircleIcon } from '@heroicons/react/24/solid';
 import { VideoPlayer } from './VideoPlayer';
 
 type TaskData = {
@@ -147,8 +145,6 @@ export default function ComparisonPage() {  const params = useParams();
   const handleNextTask = () => {
     setCurrentTaskIdx(idx => Math.min(sceneData.length - 1, idx + 1));
   };
-
-  const totalTasks = sceneData.length;
   
   // Function to hide notification
   const hideNotification = () => {
