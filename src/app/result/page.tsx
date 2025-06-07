@@ -1,7 +1,50 @@
+"use client";
 import Link from "next/link";
+import { use, useEffect, useState } from "react";
+import { supabase } from "../../../lib/supabaseClient";
+import { startComparison } from "../actions";
 
 export default function Result() {
-  return (    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen bg-gradient-to-b from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
+
+  const [sqaScore, setSqaScore] = useState(0);
+  const [reasoningScore, setReasoningScore] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate fetching scores from an API
+    const fetchScores = async () => {
+      const { data: sqa_score, error: sqa3dError } = await supabase
+        .rpc(
+          'calculate_average_score',
+          {
+            "source_param": 'sqa3d',
+          }
+        ) as { data: number, error: any };
+      
+      const { data: reasoning_score, error: reasoningError } = await supabase
+        .rpc(
+          'calculate_average_score',
+          {
+            "source_param": 'gemini',
+          }
+        ) as { data: number, error: any };
+      
+      if (sqa3dError || reasoningError) {
+        console.error("Error fetching scores:", sqa3dError || reasoningError);
+        setLoading(false);
+        return;
+      }
+
+      setSqaScore(sqa_score || 0);
+      setReasoningScore(reasoning_score || 0);
+    };
+
+    fetchScores();
+  }, []);
+
+
+  return (    
+  <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen bg-gradient-to-b from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <header className="w-full row-start-1 flex justify-start">
         <Link href="/" className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline hover:opacity-80 transition-all transform text-sm font-medium">
           <span>⬅️</span>
@@ -23,7 +66,7 @@ export default function Result() {
               </h2>
               <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mt-2">
                 <span className="inline-flex items-center">
-                  <span className="mr-2">🏆</span>20
+                  <span className="mr-2">🏆</span>{sqaScore}
                 </span>
               </div>
             </div>
@@ -34,17 +77,17 @@ export default function Result() {
               </h2>
               <div className="text-5xl font-bold text-purple-600 dark:text-purple-400 mt-2">
                 <span className="inline-flex items-center">
-                  <span className="mr-2">🧠</span>10
+                  <span className="mr-2">🧠</span>{reasoningScore}
                 </span>
               </div>
             </div>
           </div>
-        </div>
-
-        <Link href="/" className="rounded-full border-none py-3 px-8 bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:opacity-90 transition-all transform hover:scale-105 font-medium text-lg flex items-center justify-center gap-2 shadow-lg">
-          <span className="mr-2">🔄</span>
-          Compare Again
-        </Link>
+        </div>        <form action={startComparison}>
+          <button type="submit" className="rounded-full border-none py-3 px-8 bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:opacity-90 transition-all transform hover:scale-105 font-medium text-lg flex items-center justify-center gap-2 shadow-lg">
+            <span className="mr-2">🔄</span>
+            Compare Again
+          </button>
+        </form>
       </main>
       
       <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center text-sm text-gray-500 dark:text-gray-400">

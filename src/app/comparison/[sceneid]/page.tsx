@@ -1,6 +1,6 @@
 "use client";
 import { Suspense, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { redirect, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import ProgressBar from './ProgressBar';
@@ -16,6 +16,9 @@ type TaskData = {
     answer: string;
     source: string;
     split: string;
+    score: number;
+    votes: number;
+    tested: boolean;
 }
 
 interface TaskState {
@@ -27,6 +30,8 @@ interface TaskState {
 export default function ComparisonPage() {  const params = useParams();
   const sceneid = params.sceneid as string;
   const [loading, setLoading] = useState(true);
+  const [isProcessingVotes, setIsProcessingVotes] = useState(false);
+  const [notification, setNotification] = useState({ show: false, message: '', type: 'info' });
   const [sqa3dSceneData, setSqa3dSceneData] = useState<TaskData[]>([]);
   const [llmSceneData, setLlmSceneData] = useState<TaskData[]>([]);
   // Decide randomly which model appears on the left for each task
@@ -58,7 +63,7 @@ export default function ComparisonPage() {  const params = useParams();
             'get_random_sqa_tasks', 
             {
               scene_id_param: sceneid,
-              source_param: 'test',
+              source_param: 'gemini',
             }
           ) as { data: TaskData[], error: any };
       
@@ -181,15 +186,74 @@ export default function ComparisonPage() {  const params = useParams();
     setTaskId(newTaskId);
   };
   
+  const updateTaskData = async (t: TaskData) => {
+    const { id, ...updateData } = t;
+    supabase.from('sqa_tasks').update(updateData).eq('id', id)
+      .then(({ error }) => {
+        if (error) {
+          console.error('Error updating task data:', error);
+        } else {
+          console.log('Task data updated successfully');
+        }
+      })
+  }
   // Finish comparison handler
-  const handleFinish = () => {
-    // In a real app, you would save the results to the database
-    console.log('Comparison results:', taskStates);
-    // Then redirect to results page
-    window.location.href = '/result';
+  const handleFinish = async () => {
+    try {
+      setIsProcessingVotes(true);
+      setNotification({ show: true, message: 'Processing your votes...', type: 'info' });
+      
+      // Process votes for each task
+      for (let i = 0; i < taskStates.length; i++) {
+        if (taskStates[i].sqa3dValid) {
+          const taskData = sqa3dSceneData[i];
+          taskData.score = (taskData.score * taskData.votes + 1) /  (taskData.votes + 1); // Update score
+          taskData.votes += 1;
+          taskData.tested = true; // Mark as tested
+          await updateTaskData(taskData);
+        }
+        if (taskStates[i].llmValid) {
+          const taskData = llmSceneData[i];
+          taskData.score = (taskData.score * taskData.votes + 1) /  (taskData.votes + 1); // Update score
+          taskData.votes += 1;
+          taskData.tested = true; // Mark as tested
+          await updateTaskData(taskData);
+        }
+      }
+      
+      // Show success message before redirecting
+      setNotification({ show: true, message: 'Thank you! Your votes have been recorded.', type: 'success' });
+      
+      // Short delay to show success message before redirecting
+      setTimeout(() => {
+        redirect('/result');
+      }, 1500);
+    } catch (error) {
+      console.error('Error processing votes:', error);
+      setNotification({ show: true, message: 'There was an error processing your votes.', type: 'error' });
+      setIsProcessingVotes(false);
+    }
   };
   
   const totalTasks = getTotalTasks();
+  
+  // Function to hide notification
+  const hideNotification = () => {
+    setNotification(prev => ({ ...prev, show: false }));
+  };
+  
+  // Auto-hide notification after 5 seconds
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (notification.show) {
+      timer = setTimeout(() => {
+        hideNotification();
+      }, 5000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [notification.show]);
   
   return (
     <div className="grid grid-rows-[auto_1fr_auto] min-h-screen bg-gradient-to-b from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 p-4">
@@ -345,10 +409,24 @@ export default function ComparisonPage() {  const params = useParams();
                           </button>
                         ) : (
                           <button 
-                            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded hover:opacity-90"
+                            className={`px-6 py-3 ${isProcessingVotes 
+                              ? 'bg-gray-500 cursor-wait' 
+                              : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90'} 
+                              text-white rounded transition-all`}
                             onClick={handleFinish}
+                            disabled={isProcessingVotes}
                           >
-                            Finish
+                            {isProcessingVotes ? (
+                              <span className="flex items-center">
+                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Processing...
+                              </span>
+                            ) : (
+                              'Finish'
+                            )}
                           </button>
                         )}
                       </div>
@@ -382,7 +460,46 @@ export default function ComparisonPage() {  const params = useParams();
           <span>🌐</span>
           June 2025
         </div>
-      </footer>
+      </footer>      {/* Notification toast */}
+      {notification.show && (
+        <div 
+          className={`fixed bottom-4 right-4 max-w-md p-4 rounded-lg shadow-lg transition-opacity duration-300 ease-in-out opacity-100
+            ${notification.type === 'success' 
+              ? 'bg-green-600 text-white' 
+              : notification.type === 'error'
+                ? 'bg-red-600 text-white'
+                : 'bg-blue-600 text-white'}`}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              {notification.type === 'success' && (
+                <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+              )}
+              {notification.type === 'error' && (
+                <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              )}
+              {notification.type === 'info' && (
+                <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              )}
+              <p className="font-medium">{notification.message}</p>
+            </div>
+            <button 
+              onClick={hideNotification}
+              className="ml-4 text-white focus:outline-none"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

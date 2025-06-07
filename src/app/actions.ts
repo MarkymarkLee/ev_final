@@ -23,8 +23,8 @@ export async function getRandomSceneId() {
 }
 
 export async function startComparison() {
-//   const scene_id = await getRandomSceneId();
-  const scene_id = "scene0000_00";
+  const scene_id = await getRandomSceneId();
+//   const scene_id = "scene0000_00";
   
   redirect(`/comparison/${scene_id}`)
 }
