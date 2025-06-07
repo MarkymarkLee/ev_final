@@ -4,9 +4,9 @@ import { redirect, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import ProgressBar from './ProgressBar';
-import ComparisonTask from './ComparisonTask';
 import { supabase } from '../../../../lib/supabaseClient';
 import ReactPlayer from 'react-player';
+import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/solid';
 
 type TaskData = {
     id: number;
@@ -17,67 +17,53 @@ type TaskData = {
     source: string;
     split: string;
     score: number;
-    votes: number;
     tested: boolean;
 }
 
-interface TaskState {
-  sqa3dValid: boolean;
-  llmValid: boolean;
-  statusMessage: string;
-}
+const GOALS = [
+  'You can know where you are based on the situation',
+  'You can understand the question perfectly',
+  'The answer is correct based on the situation and question',
+  'To answer this question, the video or birdeye image of the scene is necessary',
+  'To answer this question, you need to understand the 3d relations of the items in the scene and yourself',
+];
 
 export default function ComparisonPage() {  const params = useParams();
   const sceneid = params.sceneid as string;
   const [loading, setLoading] = useState(true);
   const [isProcessingVotes, setIsProcessingVotes] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: 'info' });
-  const [sqa3dSceneData, setSqa3dSceneData] = useState<TaskData[]>([]);
-  const [llmSceneData, setLlmSceneData] = useState<TaskData[]>([]);
-  // Decide randomly which model appears on the left for each task
-  const [modelPositions, setModelPositions] = useState<boolean[]>([]);
+  const [sceneData, setSceneData] = useState<TaskData[]>([]);
   const [imageUrl, setImageUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [goalChecks, setGoalChecks] = useState<boolean[][]>([]);
+  const [currentTaskIdx, setCurrentTaskIdx] = useState(0);
+
     useEffect(() => {
     // Fetch scene data from Supabase
     const fetchSceneData = async () => {
       // Fetch SQA3D data
-      const { data: sqa3dData, error: sqa3dError } = await supabase
+      const { data: sceneData, error: sceneDataError } = await supabase
           .rpc(
             'get_random_sqa_tasks', 
             {
               "scene_id_param": sceneid,
-              "source_param": 'sqa3d',
+              "limit_param": 6,
             }
-          ) as { data: TaskData[], error: any };
+          ) as { data: TaskData[], error: Error | null };
       
-      if (sqa3dError) {
-        console.error('Error fetching SQA3D data:', sqa3dError);
+      if (sceneDataError) {
+        console.error('Error fetching SQA3D data:', sceneDataError);
         setLoading(false);
         return;
       };
-      
-      // Fetch LLM data
-      const { data: llmData, error: llmError } = await supabase
-          .rpc(
-            'get_random_sqa_tasks', 
-            {
-              scene_id_param: sceneid,
-              source_param: 'gemini',
-            }
-          ) as { data: TaskData[], error: any };
-      
-      if (llmError) throw llmError;
-      
-      setSqa3dSceneData(sqa3dData || []);
-      setLlmSceneData(llmData || []);
-      
-      // Randomly decide position of models for each task
-      const taskCount = Math.min(sqa3dData?.length || 0, llmData?.length || 0);
-      const positions = Array(taskCount)
-        .fill(0)
-        .map(() => Math.random() < 0.5); // true = SQA3D on left, false = LLM on left
-      setModelPositions(positions);
+
+      console.log('Fetched SQA3D data:', sceneData);
+      setSceneData(sceneData);
+
+      // Initialize goal checks for each task
+      const initialGoalChecks = sceneData.map(() => Array(GOALS.length).fill(false));
+      setGoalChecks(initialGoalChecks);
 
       // Get public URLs for the scene image and video from Supabase storage
       const { data: imageData } = await supabase.storage
@@ -102,101 +88,6 @@ export default function ComparisonPage() {  const params = useParams();
     fetchSceneData();
   }, [sceneid]);
   
-  // Get the taskId from the URL - default to 0 if not present
-  const [taskId, setTaskId] = useState(() => {
-    // If we're on the client, check the URL for task parameter
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const taskParam = urlParams.get('task');
-      return taskParam ? parseInt(taskParam, 10) : 0;
-    }
-    return 0;
-  });
-  
-  // Initialize state for each task
-  const [taskStates, setTaskStates] = useState<TaskState[]>(() => {
-    // Start with states for 3 tasks (we'll fetch 3 from each source)
-    return Array(3).fill(0).map(() => ({
-      sqa3dValid: false,
-      llmValid: false,
-      statusMessage: "Both are bad!"
-    }));
-  });
-  
-  // Helper function to get the total number of tasks
-  const getTotalTasks = () => {
-    return Math.min(sqa3dSceneData.length, llmSceneData.length);
-  };
-  
-  // Handle status change for SQA3D model
-  const handleSQA3DChange = (index: number, isValid: boolean) => {
-    setTaskStates(prev => {
-      const newStates = [...prev];
-      newStates[index].sqa3dValid = isValid;
-      updateStatusMessage(newStates, index);
-      return newStates;
-    });
-  };
-  
-  // Handle status change for LLM model
-  const handleLLMChange = (index: number, isValid: boolean) => {
-    setTaskStates(prev => {
-      const newStates = [...prev];
-      newStates[index].llmValid = isValid;
-      updateStatusMessage(newStates, index);
-      return newStates;
-    });
-  };
-  
-  // Helper function to update status messages
-  const updateStatusMessage = (states: TaskState[], index: number) => {
-    const sqa3dOnLeft = modelPositions[index]; // Get position for current task
-    
-    if (states[index].sqa3dValid && states[index].llmValid) {
-      states[index].statusMessage = "Both are good!";
-    } else if (states[index].sqa3dValid) {
-      states[index].statusMessage = sqa3dOnLeft ? "Left is better!" : "Right is better!";
-    } else if (states[index].llmValid) {
-      states[index].statusMessage = sqa3dOnLeft ? "Right is better!" : "Left is better!";
-    } else {
-      states[index].statusMessage = "Both are bad!";
-    }
-  };
-  
-  // Navigation handlers
-  const handlePrevTask = () => {
-    const newTaskId = Math.max(0, taskId - 1);
-    navigateToTask(newTaskId);
-  };
-  
-  const handleNextTask = () => {
-    const totalTasks = getTotalTasks();
-    const newTaskId = Math.min(totalTasks - 1, taskId + 1);
-    navigateToTask(newTaskId);
-  };
-  
-  // Navigate to a specific task
-  const navigateToTask = (newTaskId: number) => {
-    // Update URL with new task id
-    const url = new URL(window.location.href);
-    url.searchParams.set('task', newTaskId.toString());
-    window.history.pushState({}, '', url);
-    
-    // Update state
-    setTaskId(newTaskId);
-  };
-  
-  const updateTaskData = async (t: TaskData) => {
-    const { id, ...updateData } = t;
-    supabase.from('sqa_tasks').update(updateData).eq('id', id)
-      .then(({ error }) => {
-        if (error) {
-          console.error('Error updating task data:', error);
-        } else {
-          console.log('Task data updated successfully');
-        }
-      })
-  }
   // Finish comparison handler
   const handleFinish = async () => {
     try {
@@ -204,18 +95,10 @@ export default function ComparisonPage() {  const params = useParams();
       setNotification({ show: true, message: 'Processing your votes...', type: 'info' });
       
       // Process votes for each task
-      for (let i = 0; i < taskStates.length; i++) {
-        if (taskStates[i].sqa3dValid) {
-          const taskData = sqa3dSceneData[i];
-          taskData.score = (taskData.score * taskData.votes + 1) /  (taskData.votes + 1); // Update score
-          taskData.votes += 1;
-          taskData.tested = true; // Mark as tested
-          await updateTaskData(taskData);
-        }
-        if (taskStates[i].llmValid) {
-          const taskData = llmSceneData[i];
-          taskData.score = (taskData.score * taskData.votes + 1) /  (taskData.votes + 1); // Update score
-          taskData.votes += 1;
+      for (let i = 0; i < goalChecks.length; i++) {
+        if (goalChecks[i]) {
+          const taskData = sceneData[i];
+          taskData.score = goalChecks[i].filter(Boolean).length / 5;
           taskData.tested = true; // Mark as tested
           await updateTaskData(taskData);
         }
@@ -235,7 +118,36 @@ export default function ComparisonPage() {  const params = useParams();
     }
   };
   
-  const totalTasks = getTotalTasks();
+  const updateTaskData = async (t: TaskData) => {
+    const { id, ...updateData } = t;
+    supabase.from('sqa_tasks').update(updateData).eq('id', id)
+      .then(({ error }) => {
+        if (error) {
+          console.error('Error updating task data:', error);
+        } else {
+          console.log('Task data updated successfully');
+        }
+      })
+  }
+  
+  // Handler for checking/unchecking a goal for a task
+  const handleGoalCheck = (taskIdx: number, goalIdx: number) => {
+    setGoalChecks(prev => {
+      const updated = prev.map(arr => [...arr]);
+      updated[taskIdx][goalIdx] = !updated[taskIdx][goalIdx];
+      return updated;
+    });
+  };
+
+  // Navigation handlers for single task view
+  const handlePrevTask = () => {
+    setCurrentTaskIdx(idx => Math.max(0, idx - 1));
+  };
+  const handleNextTask = () => {
+    setCurrentTaskIdx(idx => Math.min(sceneData.length - 1, idx + 1));
+  };
+
+  const totalTasks = sceneData.length;
   
   // Function to hide notification
   const hideNotification = () => {
@@ -255,6 +167,21 @@ export default function ComparisonPage() {  const params = useParams();
     };
   }, [notification.show]);
   
+  // Update goalChecks length to match sceneData length
+  useEffect(() => {
+    if (sceneData.length > 0) {
+      setGoalChecks(prev => {
+        // If already correct length, do nothing
+        if (prev.length === sceneData.length) return prev;
+        // If new data, initialize or resize
+        const newChecks = Array(sceneData.length)
+          .fill(0)
+          .map((_, i) => prev[i] ? prev[i] : Array(GOALS.length).fill(false));
+        return newChecks;
+      });
+    }
+  }, [sceneData.length]);
+  
   return (
     <div className="grid grid-rows-[auto_1fr_auto] min-h-screen bg-gradient-to-b from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 p-4">
       <header className="w-full flex justify-between items-center mb-6">
@@ -270,7 +197,6 @@ export default function ComparisonPage() {  const params = useParams();
           <span>➡️</span>
         </Link>
       </header>
-      
       <main className="flex flex-col items-center gap-8">
         {loading ? (
           <div className="w-full max-w-4xl flex items-center justify-center p-12">
@@ -298,7 +224,7 @@ export default function ComparisonPage() {  const params = useParams();
                   
                   {/* Scene Image */}
                   <div className="w-full">
-                    <h3 className="text-gray-300 font-medium mb-1 text-center text-sm">Bird's Eye View</h3>
+                    <h3 className="text-gray-300 font-medium mb-1 text-center text-sm">{`Bird&apos;s Eye View`}</h3>
                     <div className="bg-gray-800 rounded-md overflow-hidden h-[150px] relative">
                       {imageUrl ? (
                         <Image 
@@ -317,127 +243,93 @@ export default function ComparisonPage() {  const params = useParams();
                   </div>
                 </div>
                 
-                {/* Right column - Task data and controls */}
+                {/* Right column - Single Task and checklist */}
                 <div className="w-full md:w-7/10 flex flex-col h-full">
-                  {/* Make this a flex container with full height */}
                   <div className="flex flex-col flex-grow h-full">
-                    {/* Add title and instruction */}
                     <div className="mb-4">
-                      <h2 className="text-xl font-bold text-white mb-1">Task {taskId + 1}: Answer Comparison</h2>
+                      <h2 className="text-xl font-bold text-white mb-1">Task Goal Checklist</h2>
                       <p className="text-gray-300 text-sm mb-3">
-                        Compare the two answers and select which one is more accurate based on the scene context. 
-                        Select by clicking on the card that contains the better answer.
+                        Review the situation, question, and answer, then check the goals that are achieved.
                       </p>
                     </div>
-                    
-                    {/* Task content area */}
-                    <div className="overflow-auto">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {modelPositions[taskId] ? (
-                          // SQA3D on the left, LLM on the right
-                          <>
-                            <ComparisonTask 
-                              modelName="SQA3D"
-                              isValid={taskStates[taskId]?.sqa3dValid}
-                              situation={sqa3dSceneData[taskId]?.situation}
-                              question={sqa3dSceneData[taskId]?.question}
-                              answer={sqa3dSceneData[taskId]?.answer}
-                              onStatusChange={(isValid) => handleSQA3DChange(taskId, isValid)}
-                            />
-                            <ComparisonTask 
-                              modelName="LLM"
-                              isValid={taskStates[taskId]?.llmValid || false}
-                              situation={llmSceneData[taskId]?.situation}
-                              question={llmSceneData[taskId]?.question}
-                              answer={llmSceneData[taskId]?.answer}
-                              onStatusChange={(isValid) => handleLLMChange(taskId, isValid)}
-                            />
-                          </>
-                        ) : (
-                          // LLM on the left, SQA3D on the right
-                          <>
-                            <ComparisonTask 
-                              modelName="LLM"
-                              isValid={taskStates[taskId]?.llmValid || false}
-                              situation={llmSceneData[taskId]?.situation}
-                              question={llmSceneData[taskId]?.question}
-                              answer={llmSceneData[taskId]?.answer}
-                              onStatusChange={(isValid) => handleLLMChange(taskId, isValid)}
-                            />
-                            <ComparisonTask 
-                              modelName="SQA3D"
-                              isValid={taskStates[taskId]?.sqa3dValid || false}
-                              situation={sqa3dSceneData[taskId]?.situation}
-                              question={sqa3dSceneData[taskId]?.question}
-                              answer={sqa3dSceneData[taskId]?.answer}
-                              onStatusChange={(isValid) => handleSQA3DChange(taskId, isValid)}
-                            />
-                          </>
-                        )}
+                    {sceneData.length > 0 && (
+                      <div className="rounded-lg bg-gray-800/80 p-4 shadow-md border border-gray-700">
+                        <div className="mb-2">
+                          <span className="text-lg font-semibold text-blue-300">Task {currentTaskIdx + 1} of {sceneData.length}</span>
+                        </div>
+                        <div className="mb-2">
+                          <span className="font-medium text-gray-400">Situation:</span>
+                          <span className="ml-2 text-gray-200">{sceneData[currentTaskIdx]?.situation}</span>
+                        </div>
+                        <div className="mb-2">
+                          <span className="font-medium text-gray-400">Question:</span>
+                          <span className="ml-2 text-gray-200">{sceneData[currentTaskIdx]?.question}</span>
+                        </div>
+                        <div className="mb-4">
+                          <span className="font-medium text-gray-400">Answer:</span>
+                          <span className="ml-2 text-gray-200">{sceneData[currentTaskIdx]?.answer}</span>
+                        </div>
+                        <div>
+                          <ul className="space-y-2">
+                            {GOALS.map((goal, goalIdx) => (
+                              <li key={goalIdx} className="flex items-center gap-3">
+                                <button
+                                  type="button"
+                                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors focus:outline-none ${goalChecks[currentTaskIdx][goalIdx] ? 'bg-green-500 border-green-500' : 'bg-gray-700 border-gray-500'}`}
+                                  onClick={() => handleGoalCheck(currentTaskIdx, goalIdx)}
+                                  aria-pressed={goalChecks[currentTaskIdx][goalIdx]}
+                                >
+                                  {goalChecks[currentTaskIdx][goalIdx] ? (
+                                    <CheckCircleIcon className="w-5 h-5 text-white" />
+                                  ) : (
+                                    <span className="block w-3 h-3 rounded-full bg-gray-400"></span>
+                                  )}
+                                </button>
+                                <span className="text-gray-200 text-base">{goal}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       </div>
-                      
-                      {/* Status message */}
-                      <div className={`text-center py-3 font-medium text-xl ${
-                        taskStates[taskId]?.statusMessage.includes("good") ? "text-green-500" : 
-                        taskStates[taskId]?.statusMessage.includes("bad") ? "text-red-500" : 
-                        "text-blue-500"
-                      }`}>
-                        {taskStates[taskId]?.statusMessage || "Both are bad!"}
-                      </div>
-                    </div>
-                    
-                    {/* Flexible spacer that will actually grow */}
-                    <div className="flex-grow"></div>
-                    
-                    {/* Footer area with navigation - now will stick to bottom */}
-                    <div className="mt-auto">
-                      <div className="flex justify-between">
-                        <button 
-                          className="px-6 py-3 bg-gray-700 text-gray-200 rounded hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          onClick={handlePrevTask}
-                          disabled={taskId === 0}
+                    )}
+                    {/* Navigation buttons */}
+                    <div className="mt-8 flex justify-between">
+                      <button
+                        className="px-6 py-3 bg-gray-700 text-gray-200 rounded hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={handlePrevTask}
+                        disabled={currentTaskIdx === 0}
+                      >
+                        Previous Task
+                      </button>
+                      {currentTaskIdx < sceneData.length - 1 ? (
+                        <button
+                          className="px-6 py-3 bg-gray-700 text-gray-200 rounded hover:bg-gray-600 transition-colors"
+                          onClick={handleNextTask}
                         >
-                          Previous Task
+                          Next Task
                         </button>
-                        
-                        {taskId < totalTasks - 1 ? (
-                          <button 
-                            className="px-6 py-3 bg-gray-700 text-gray-200 rounded hover:bg-gray-600 transition-colors"
-                            onClick={handleNextTask}
-                          >
-                            Next Task
-                          </button>
-                        ) : (
-                          <button 
-                            className={`px-6 py-3 ${isProcessingVotes 
-                              ? 'bg-gray-500 cursor-wait' 
-                              : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90'} 
-                              text-white rounded transition-all`}
-                            onClick={handleFinish}
-                            disabled={isProcessingVotes}
-                          >
-                            {isProcessingVotes ? (
-                              <span className="flex items-center">
-                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Processing...
-                              </span>
-                            ) : (
-                              'Finish'
-                            )}
-                          </button>
-                        )}
-                      </div>
-                      
-                      <div className="mt-4 pt-4 border-t border-gray-700">
-                        <ProgressBar 
-                          currentTask={taskId}
-                          totalTasks={totalTasks}
-                          onTaskSelect={navigateToTask}
-                        />
-                      </div>
+                      ) : (
+                        <button
+                          className={`px-6 py-3 ${isProcessingVotes 
+                            ? 'bg-gray-500 cursor-wait' 
+                            : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90'} 
+                            text-white rounded transition-all`}
+                          onClick={handleFinish}
+                          disabled={isProcessingVotes}
+                        >
+                          {isProcessingVotes ? (
+                            <span className="flex items-center">
+                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Processing...
+                            </span>
+                          ) : (
+                            'Finish'
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

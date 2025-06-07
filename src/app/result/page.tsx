@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 import { startComparison } from "../actions";
 
@@ -8,7 +8,7 @@ export default function Result() {
 
   const [sqaScore, setSqaScore] = useState(0);
   const [reasoningScore, setReasoningScore] = useState(0);
-  const [loading, setLoading] = useState(true);
+  // const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Simulate fetching scores from an API
@@ -19,7 +19,7 @@ export default function Result() {
           {
             "source_param": 'sqa3d',
           }
-        ) as { data: number, error: any };
+        ) as { data: number, error: Error | null };
       
       const { data: reasoning_score, error: reasoningError } = await supabase
         .rpc(
@@ -27,11 +27,10 @@ export default function Result() {
           {
             "source_param": 'gemini',
           }
-        ) as { data: number, error: any };
+        ) as { data: number, error: Error | null };
       
       if (sqa3dError || reasoningError) {
         console.error("Error fetching scores:", sqa3dError || reasoningError);
-        setLoading(false);
         return;
       }
 
@@ -66,7 +65,7 @@ export default function Result() {
               </h2>
               <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mt-2">
                 <span className="inline-flex items-center">
-                  <span className="mr-2">🏆</span>{sqaScore}
+                  <span className="mr-2">🏆</span>{sqaScore.toFixed(2)}
                 </span>
               </div>
             </div>
@@ -77,7 +76,7 @@ export default function Result() {
               </h2>
               <div className="text-5xl font-bold text-purple-600 dark:text-purple-400 mt-2">
                 <span className="inline-flex items-center">
-                  <span className="mr-2">🧠</span>{reasoningScore}
+                  <span className="mr-2">🧠</span>{reasoningScore.toFixed(2)}
                 </span>
               </div>
             </div>

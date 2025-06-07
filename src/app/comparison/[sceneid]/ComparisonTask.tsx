@@ -11,7 +11,6 @@ interface ComparisonTaskProps {
 }
 
 export default function ComparisonTask({ 
-  modelName,
   isValid: initialIsValid,
   situation,
   question,
