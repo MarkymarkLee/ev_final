@@ -7,6 +7,7 @@ import ProgressBar from './ProgressBar';
 import { supabase } from '../../../../lib/supabaseClient';
 import ReactPlayer from 'react-player';
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/solid';
+import { VideoPlayer } from './VideoPlayer';
 
 type TaskData = {
     id: number;
@@ -215,7 +216,13 @@ export default function ComparisonPage() {  const params = useParams();
                     <h3 className="text-gray-300 font-medium mb-1 text-center text-sm">Environment Images</h3>
                     <div className="bg-gray-800 rounded-md overflow-hidden">
                       <Suspense fallback={<div className="w-full h-full animate-pulse flex items-center justify-center text-gray-400">Loading video...</div>}>
-                           <ReactPlayer url={videoUrl} controls={true} width="100%" height="100%" />
+                        {videoUrl ? (
+                          <VideoPlayer source={videoUrl}/>
+                        ) : (
+                          <div className="w-full h-[200px] md:h-[300px] flex items-center justify-center bg-black/40">
+                            <p className="text-white font-medium">Loading Video...</p>
+                          </div>
+                        )}
                       </Suspense>
                     </div>
                   </div>
@@ -224,7 +231,7 @@ export default function ComparisonPage() {  const params = useParams();
                   
                   {/* Scene Image */}
                   <div className="w-full">
-                    <h3 className="text-gray-300 font-medium mb-1 text-center text-sm">{`Bird&apos;s Eye View`}</h3>
+                    <h3 className="text-gray-300 font-medium mb-1 text-center text-sm">{`Bird's Eye View`}</h3>
                     <div className="bg-gray-800 rounded-md overflow-hidden h-[150px] relative">
                       {imageUrl ? (
                         <Image 
