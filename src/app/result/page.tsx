@@ -105,7 +105,7 @@ export default function Result() {
             </div>
             <div className="flex flex-col items-center p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
               <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-200 mb-2">
-                Reasoning <span className="text-lg font-normal text-gray-400">(Human)</span>
+                RVLM <span className="text-lg font-normal text-gray-400">(Human)</span>
               </h2>
               <div className="text-6xl font-bold text-purple-600 dark:text-purple-400 mt-2">
                 <span className="inline-flex items-center">
@@ -125,7 +125,7 @@ export default function Result() {
             </div>
             <div className="flex flex-col items-center p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
               <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-200 mb-2">
-                Reasoning <span className="text-lg font-normal text-gray-400">(Gemini)</span>
+                RVLM <span className="text-lg font-normal text-gray-400">(Gemini)</span>
               </h2>
               <div className="text-6xl font-bold text-purple-600 dark:text-purple-400 mt-2">
                 <span className="inline-flex items-center">
