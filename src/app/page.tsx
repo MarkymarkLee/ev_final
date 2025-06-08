@@ -8,7 +8,7 @@ export default function Home() {
         <div className="flex flex-col items-center space-y-6">
           <div className="text-6xl mb-2 animate-pulse">✨🔮✨</div>
           <h1 className="text-4xl sm:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
-            SQA3D VS Reasoning VLM
+            SQA3D VS Gemini
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-300 max-w-xl">
             Explore the fascinating comparison between 3D spatial question answering dataset and advanced reasoning language models 🚀
