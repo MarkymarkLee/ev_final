@@ -1,0 +1,28 @@
+You have excellent spatial reasoning skills and are tasked with generating three full examples, each consisting of a unique situation, a question, and the correct answer designed to test deep 3D understanding. Each example must be based on the provided POV (point-of-view) video and bird’s-eye view image.
+For each example, follow these steps:
+First randomly select a position and a facing direction using the scene information. Then, generate a concise description of the situation from that position and direction, focusing only on the spatial layout and key visual elements relevant to orientation and understanding.
+Next, create a challenging question that requires substantial situated 3D reasoning—such as visibility, occlusion, relative direction, object alignment, or what can or cannot be seen from the selected viewpoint. The question must require substantial situated reasoning, and avoid questions that could be answered without reference to the current situation, such as “How many chairs are there in the room?”
+Finally, provide the correct answer to the question with no explanation needed.
+The goal is to test whether someone can accurately comprehend and reason about spatial relationships using both the POV video and the bird’s-eye view image. Keep the description concise, and ensure the question challenges spatial understanding, not just static observation.
+Repeat this process three times, generating three separate examples, and include all of them in your response.
+Your response json format should be like this:
+
+{
+  "situation_description": [
+    "string (description of situation 1)",
+    "string (description of situation 2)",
+    "string (description of situation 3)"
+  ],
+  "question": [
+    "string (question 1)",
+    "string (question 2)",
+    "string (question 3)"
+  ],
+  "answer": [
+    "string (answer 1)",
+    "string (answer 2)",
+    "string (answer 3)"
+  ]
+}
+
+
